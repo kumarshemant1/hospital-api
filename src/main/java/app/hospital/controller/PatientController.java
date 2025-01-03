@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import app.hospital.entity.Patient;
 
 @RestController
-@RequestMapping("/hospital/patient")
+@RequestMapping(path = "/hospital/patient")
 public class PatientController {
 	
 	@GetMapping(path = "/fetch/{patientId}", produces = {MediaType.APPLICATION_XML_VALUE, MediaType.APPLICATION_JSON_VALUE})
