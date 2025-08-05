@@ -1,57 +1,48 @@
-package com.example.flowablecmmndemo.service;
+package com.example.flowablecmmndemo.controller;
 
 import com.example.flowablecmmndemo.model.Document;
-import com.example.flowablecmmndemo.repository.DocumentRepository;
-import org.flowable.cmmn.api.CmmnRuntimeService;
-import org.flowable.cmmn.api.CmmnTaskService;
+import com.example.flowablecmmndemo.service.DocumentWorkflowService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-@Service
-public class DocumentWorkflowService {
+@RestController
+@RequestMapping("/api/workflow")
+public class DocumentWorkflowController {
 
     @Autowired
-    private CmmnRuntimeService cmmnRuntimeService;
+    private DocumentWorkflowService documentWorkflowService;
 
-    @Autowired
-    private CmmnTaskService cmmnTaskService;
-
-    @Autowired
-    private DocumentRepository documentRepository;
-
-    public String startCase(String initiator) {
-        Map<String, Object> variables = new HashMap<>();
-        variables.put("initiator", initiator);
-        return cmmnRuntimeService.startCaseInstanceByKey("documentCase", variables).getId();
+    @PostMapping("/start")
+    public String startWorkflow(@RequestParam String initiator) {
+        return documentWorkflowService.startCase(initiator);
     }
 
-    public void uploadDocument(String caseInstanceId, String taskId, MultipartFile file) throws IOException {
-        // Save file to database
-        Document document = new Document();
-        document.setFileName(file.getOriginalFilename());
-        document.setContent(file.getBytes());
-        document.setCaseInstanceId(caseInstanceId);
-        documentRepository.save(document);
-
-        // Complete upload task
-        Map<String, Object> variables = new HashMap<>();
-        variables.put("documentId", document.getId());
-        cmmnTaskService.complete(taskId, variables);
+    @PostMapping("/upload/{caseInstanceId}/{taskId}")
+    public void uploadDocument(@PathVariable String caseInstanceId,
+                              @PathVariable String taskId,
+                              @RequestParam("file") MultipartFile file) throws Exception {
+        documentWorkflowService.uploadDocument(caseInstanceId, taskId, file);
     }
 
-    public void reviewDocument(String taskId, String outcome) {
-        Map<String, Object> variables = new HashMap<>();
-        variables.put("reviewOutcome", outcome);
-        cmmnTaskService.complete(taskId, variables);
+    @PostMapping("/review/{taskId}")
+    public void reviewDocument(@PathVariable String taskId,
+                               @RequestParam String outcome) {
+        documentWorkflowService.reviewDocument(taskId, outcome);
     }
 
-    public Document downloadDocument(Long documentId) {
-        return documentRepository.findById(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found"));
+    @GetMapping("/download/{documentId}")
+    public ResponseEntity<Resource> downloadDocument(@PathVariable Long documentId) {
+        Document document = documentWorkflowService.downloadDocument(documentId);
+        ByteArrayResource resource = new ByteArrayResource(document.getContent());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + document.getFileName() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
     }
 }
